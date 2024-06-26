@@ -25,6 +25,14 @@ const client = new Client("https://grpc.solanavibestation.com", undefined, undef
 
 //Initialize Ring Buffer
 
+// This portion of the code streams the Openbook data which is needed to make a buy request.
+// The data is stored in a buffer ring and then queried if the raydium stream gets a liquidity event.
+// We stream and store this data because a lot of the time the data we need from here is streamed before the raydium stream gets the liquidity event.
+// This way we can store the data and then query it when we need it instead of making a slow web request to get the data.
+// Many times it will not contain the data we need in which case the buy will be aborted. A trade-off for speed.
+
+// I know somebody can probably improve this a lot. I'm not a pro at this stuff. I'm just a guy who likes to code.
+
 export const bufferRing = new BufferRingBuffer(5000);
 
 export async function streamOpenbook() {

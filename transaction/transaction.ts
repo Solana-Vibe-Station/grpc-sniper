@@ -130,7 +130,7 @@ export async function buy(latestBlockhash: string, newTokenAccount: PublicKey, p
         payerKey: wallet.publicKey,
         recentBlockhash: latestBlockhash,
         instructions: [
-          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 10000 }), // Set this to super small value since it is not taken into account when sending as bundle.
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }), // Set this to super small value since it is not taken into account when sending as bundle.
           ComputeBudgetProgram.setComputeUnitLimit({ units: 80000 }), // Calculated amount of units typically used in our transaction is about 70848. Setting limit slightly above.
           createAssociatedTokenAccountIdempotentInstruction(
             wallet.publicKey,
@@ -149,14 +149,14 @@ export async function buy(latestBlockhash: string, newTokenAccount: PublicKey, p
 
       transaction.sign([wallet, ...innerTransaction.signers]);
 
-      await sleep(30000);
+      //await sleep(30000);
 
-      const signature = await solanaConnection.sendRawTransaction(transaction.serialize(), {
+      /*const signature = await solanaConnection.sendRawTransaction(transaction.serialize(), {
         preflightCommitment: commitment,
       });
-
-      logger.info(`Sending bundle transaction with mint - ${signature}`);
-      //sendBundle(latestBlockhash, messageV0, poolState.baseMint);
+*/
+      //logger.info(`Sending bundle transaction with mint - ${signature}`);
+      sendBundle(latestBlockhash, messageV0, poolState.baseMint);
     }
     catch (error) {
       logger.error(error);

@@ -116,7 +116,7 @@ try {
   const b = new Bundle([transaction], 2);
   b.addTipTx(
       SIGNER_WALLET,
-      150_000,
+      150_000,      // Adjust Jito tip amount here
       tipAccount,
       latestBlockhash
   );
@@ -145,6 +145,9 @@ catch (error) {
 }
 
 // Get leader schedule
+
+// This was when I was experimenting with only sending the buy tx when a Jito leader was up or going to be up in the next slot so that I wouldn't
+// have to wait multiple slots for the tx to be processed. I ended up not using this feature as it couldn't get it working correctly before I moved on.
 
 export async function storeJitoLeaderSchedule() {
 

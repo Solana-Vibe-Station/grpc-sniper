@@ -31,12 +31,13 @@ export async function populateJitoLeaderArray() {
   leaderSchedule = await storeJitoLeaderSchedule();
 }
 
+// uncomment this line to enable Jito leader schedule check and delete the return line.
 function slotExists(slot: number): boolean {
   //return leaderSchedule.has(slot);
   return true
 }
 
-const client = new Client("https://grpc.solanavibestation.com", undefined, undefined);
+const client = new Client("https://grpc.solanavibestation.com", undefined, undefined); //grpc endpoint from Solana Vibe Station obviously
 
 (async () => {
   const version = await client.getVersion(); // gets the version information
@@ -111,30 +112,30 @@ export async function streamNewTokens() {
         "filters": [
           {
             "memcmp": {
-              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('quoteMint').toString(),
+              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('quoteMint').toString(), // Filter for only tokens paired with SOL
               "base58": "So11111111111111111111111111111111111111112"
             }
           },
           {
             "memcmp": {
-              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('marketProgramId').toString(),
+              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('marketProgramId').toString(), // Filter for only Raydium markets that contain references to Serum
               "base58": "srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX"
             }
           },
           {
             "memcmp": {
-              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('swapQuoteInAmount').toString(),
+              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('swapQuoteInAmount').toString(), // Hack to filter for only new tokens. There is probably a better way to do this
               "bytes": Uint8Array.from([0])
             }
           },
           {
             "memcmp": {
-              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('swapBaseOutAmount').toString(),
+              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('swapBaseOutAmount').toString(), // Hack to filter for only new tokens. There is probably a better way to do this
               "bytes": Uint8Array.from([0])
             }
           }
         ],
-        "owner": ["675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"]
+        "owner": ["675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"] // raydium program id to subscribe to
       }
     },
     "transactions": {},
@@ -143,7 +144,7 @@ export async function streamNewTokens() {
       "block": []
     },
     "accountsDataSlice": [],
-    "commitment": CommitmentLevel.PROCESSED,
+    "commitment": CommitmentLevel.PROCESSED,  // Subscribe to processed blocks for the fastest updates
     entry: {}
   }
 
