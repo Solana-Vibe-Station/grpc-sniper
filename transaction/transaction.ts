@@ -15,7 +15,7 @@ import { sendBundle } from "../jito/bundle";
 import { logger } from "../utils/logger";
 import { MinimalMarketLayoutV3, getMinimalMarketV3 } from "../market";
 import { createPoolKeys, getTokenAccounts } from "../liquidity";
-import { populateJitoLeaderArray } from "../streaming/raydium";
+//import { populateJitoLeaderArray } from "../streaming/raydium";
 import { retrieveEnvVariable } from "../utils";
 
 
@@ -98,7 +98,7 @@ export async function init(): Promise<void> {
   
     quoteTokenAssociatedAddress = tokenAccount.pubkey;
 
-    await populateJitoLeaderArray();
+    //await populateJitoLeaderArray();
   
   }
 

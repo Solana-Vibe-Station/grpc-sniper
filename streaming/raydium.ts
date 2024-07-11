@@ -21,15 +21,6 @@ import { LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3 } from "@raydium-io/r
 import { PublicKey } from "@solana/web3.js";
 import { bufferRing } from "./openbook";
 import { buy } from "../transaction/transaction";
-import { storeJitoLeaderSchedule } from "../jito/bundle";
-
-// Array to store Jito leaders for current epoch
-let leaderSchedule = new Set<number>();
-
-// Function to populate the Jito leader array
-export async function populateJitoLeaderArray() {
-  leaderSchedule = await storeJitoLeaderSchedule();
-}
 
 // uncomment this line to enable Jito leader schedule check and delete the return line.
 function slotExists(slot: number): boolean {

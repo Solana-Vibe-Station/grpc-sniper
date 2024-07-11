@@ -47,6 +47,11 @@ return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const SIGNER_WALLET = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+const JITO_TIP = process.env.JITO_TIP || '';
+const jitoTip = Number(JITO_TIP) * 1000000000;
+console.log('JITO_TIP:', jitoTip);
+
+
 
 
 const blockEngineUrl = process.env.BLOCK_ENGINE_URL || '';
@@ -59,8 +64,14 @@ const decodedKey = new Uint8Array(
 );
 const keypair = Keypair.fromSecretKey(decodedKey);
 
-const c = searcherClient(blockEngineUrl, keypair);
+//const c = searcherClient(blockEngineUrl, keypair);
+const noAuth = process.env.NO_AUTH || '';
+console.log('NO_AUTH:', noAuth);
 
+const c =
+  noAuth === 'true'
+    ? searcherClient(blockEngineUrl, undefined)
+    : searcherClient(blockEngineUrl, keypair);
 
 export const searcherClientAdv = (
 url: string,
@@ -116,7 +127,7 @@ try {
   const b = new Bundle([transaction], 2);
   b.addTipTx(
       SIGNER_WALLET,
-      150_000,      // Adjust Jito tip amount here
+      Number(jitoTip),      // Adjust Jito tip amount here
       tipAccount,
       latestBlockhash
   );
@@ -149,36 +160,4 @@ catch (error) {
 // This was when I was experimenting with only sending the buy tx when a Jito leader was up or going to be up in the next slot so that I wouldn't
 // have to wait multiple slots for the tx to be processed. I ended up not using this feature as it couldn't get it working correctly before I moved on.
 
-export async function storeJitoLeaderSchedule() {
-
-const cs = searcherClientAdv(blockEngineUrl, keypair);
-
-
-const leaderSchedule = new Set<number>();
-
-cs.getConnectedLeadersRegioned({ regions: ["tokyo", "amsterdam", "ny", "frankfurt"] }, (error, response) => {
-
-
-  for (let key in response) {
-    if (key === 'connectedValidators') {
-      let validators = response[key];
-      for (let validatorKey in validators) {
-        // Each validator object
-        let validator = validators[validatorKey];
-        // Assuming `slots` is an array inside each validator object
-        Object.keys(validator.connectedValidators).forEach((key: string) => {
-          const slotsArray: number[][] = Object.values(validator.connectedValidators[key]); // Assume SlotList is an array of arrays
-          const flattenedSlotsArray: number[] = slotsArray.flat(); // Flatten the array
-          flattenedSlotsArray.forEach((slot: number) => {
-            leaderSchedule.add(slot);
-          });
-        });
-      }
-    }
-  }
-
-  //console.log(leaderSchedule);
-});
-
-return leaderSchedule;
-}
+// Removed due to not working with public access, non-whitelisted keypair.
