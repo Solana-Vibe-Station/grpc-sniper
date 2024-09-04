@@ -10,16 +10,11 @@ This program does not have any sell logic. This is not a bot. This is simply exa
 You can use this branch to use the public Jito send transaction endpoint without having to have a pre-approved whitelisted Jito id.json file.
 
 # Requirements
-- A Solana id.json keypair.
-- Yellowstone's Dragons Mouth GRPC streaming access
-- Basic Solana RPC HTTP/WebSocket access
+- Yellowstone's Dragons Mouth GRPC streaming access (SVS's gRPC service)
+- RPC HTTP/WebSocket access (Ideally SVS's Staked RPC for best results)
 
 
 # Instructions
-- Using the Solana CLI, generate a id.json keypair using the following command
-`solana-keygen new --outfile ./public-bundles.json`
-![image](https://github.com/bigj-SVS/grpc-sniper/assets/173855326/a6624c17-4397-48f4-82ab-9b1940990b89)
-- Move this file to your cloned grpc-sniper repo in the top-level parent directory
 - Rename `.env.copy` to `.env`
 - Add Solana Vibe Station API key to both the `RPC_ENDPOINT` and `RPC_WEBSOCKET_ENDPOINT` fields in the .env file
 - Add your private key in base64 format which can be exported from either Phantom or derived from your JSON keypair for your wallet.
