@@ -138,8 +138,6 @@ export async function buy(latestBlockhash: string, newTokenAccount: PublicKey, p
       }).compileToV0Message();
   
   
-      let commitment: Commitment = retrieveEnvVariable('COMMITMENT_LEVEL', logger) as Commitment;
-
       const transaction = new VersionedTransaction(messageV0);
 
       transaction.sign([wallet, ...innerTransaction.signers]);
@@ -155,8 +153,4 @@ export async function buy(latestBlockhash: string, newTokenAccount: PublicKey, p
       logger.error(error);
     }
   
-  }
-
-  function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
