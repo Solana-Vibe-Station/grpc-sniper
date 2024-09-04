@@ -1,21 +1,17 @@
 import { Liquidity, LiquidityPoolKeys, LiquidityStateV4, Token, TokenAmount } from "@raydium-io/raydium-sdk";
-import { Commitment, ComputeBudgetProgram, Connection, Keypair, PublicKey, SystemProgram, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
+import { Commitment, ComputeBudgetProgram, Connection, Keypair, PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { COMMITMENT_LEVEL, LOG_LEVEL, PRIVATE_KEY, QUOTE_AMOUNT, QUOTE_MINT, RPC_ENDPOINT, RPC_WEBSOCKET_ENDPOINT } from "../constants";
 import {
-    AccountLayout,
     createAssociatedTokenAccountIdempotentInstruction,
-    createCloseAccountInstruction,
     getAssociatedTokenAddressSync,
     TOKEN_PROGRAM_ID,
   } from '@solana/spl-token';
 
-import { TokenInstructions } from '@project-serum/serum';
-import { sendBundle } from "../jito/bundle";
 import { logger } from "../utils/logger";
-import { MinimalMarketLayoutV3, getMinimalMarketV3 } from "../market";
+import { MinimalMarketLayoutV3 } from "../market";
 import { createPoolKeys, getTokenAccounts } from "../liquidity";
-import { populateJitoLeaderArray } from "../streaming/raydium";
+//import { populateJitoLeaderArray } from "../streaming/raydium";
 import { retrieveEnvVariable } from "../utils";
 
 
@@ -98,7 +94,6 @@ export async function init(): Promise<void> {
   
     quoteTokenAssociatedAddress = tokenAccount.pubkey;
 
-    await populateJitoLeaderArray();
   
   }
 
@@ -130,8 +125,8 @@ export async function buy(latestBlockhash: string, newTokenAccount: PublicKey, p
         payerKey: wallet.publicKey,
         recentBlockhash: latestBlockhash,
         instructions: [
-          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }), // Set this to super small value since it is not taken into account when sending as bundle.
-          ComputeBudgetProgram.setComputeUnitLimit({ units: 80000 }), // Calculated amount of units typically used in our transaction is about 70848. Setting limit slightly above.
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100000 }), // Set this to super small value since it is not taken into account when sending as bundle.
+          ComputeBudgetProgram.setComputeUnitLimit({ units: 60000 }), // Calculated amount of units typically used in our transaction is about 70848. Setting limit slightly above.
           createAssociatedTokenAccountIdempotentInstruction(
             wallet.publicKey,
             ata,
@@ -143,27 +138,19 @@ export async function buy(latestBlockhash: string, newTokenAccount: PublicKey, p
       }).compileToV0Message();
   
   
-      let commitment: Commitment = retrieveEnvVariable('COMMITMENT_LEVEL', logger) as Commitment;
-
       const transaction = new VersionedTransaction(messageV0);
 
       transaction.sign([wallet, ...innerTransaction.signers]);
 
-      //await sleep(30000);
 
-      /*const signature = await solanaConnection.sendRawTransaction(transaction.serialize(), {
-        preflightCommitment: commitment,
+      const signature = await solanaConnection.sendRawTransaction(transaction.serialize(), {
+        skipPreflight: true,
       });
-*/
-      //logger.info(`Sending bundle transaction with mint - ${signature}`);
-      sendBundle(latestBlockhash, messageV0, poolState.baseMint);
+
+      logger.info(`Sending buy transaction with signature - ${signature}`);
     }
     catch (error) {
       logger.error(error);
     }
   
-  }
-
-  function sleep(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }

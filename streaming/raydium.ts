@@ -21,15 +21,6 @@ import { LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3 } from "@raydium-io/r
 import { PublicKey } from "@solana/web3.js";
 import { bufferRing } from "./openbook";
 import { buy } from "../transaction/transaction";
-import { storeJitoLeaderSchedule } from "../jito/bundle";
-
-// Array to store Jito leaders for current epoch
-let leaderSchedule = new Set<number>();
-
-// Function to populate the Jito leader array
-export async function populateJitoLeaderArray() {
-  leaderSchedule = await storeJitoLeaderSchedule();
-}
 
 // uncomment this line to enable Jito leader schedule check and delete the return line.
 function slotExists(slot: number): boolean {
@@ -56,50 +47,32 @@ export async function streamNewTokens() {
 
     if (data.account != undefined) {
       logger.info(`New token alert!`);
-      let slotCheckResult = false;
-      let slotCheck = Number(data.account.slot);
-      for (let i = 0; i < 2; i++) {
-        logger.info(`Start slot check. Attempt ${i}`);
-        const exists = slotExists(slotCheck + i);
-        logger.info(`End slot check`);
-        if (exists === true) {
-          slotCheckResult = true;
-          break;
+
+      
+      const poolstate = LIQUIDITY_STATE_LAYOUT_V4.decode(data.account.account.data);
+      const tokenAccount = new PublicKey(data.account.account.pubkey);
+      logger.info(`Token Account: ${tokenAccount}`);
+
+      let attempts = 0;
+      const maxAttempts = 2;
+
+      const intervalId = setInterval(async () => {
+        const marketDetails = bufferRing.findPattern(poolstate.baseMint);
+        if (Buffer.isBuffer(marketDetails)) {
+          const fullMarketDetailsDecoded = MARKET_STATE_LAYOUT_V3.decode(marketDetails);
+          const marketDetailsDecoded = {
+            bids: fullMarketDetailsDecoded.bids,
+            asks: fullMarketDetailsDecoded.asks,
+            eventQueue: fullMarketDetailsDecoded.eventQueue,
+          };
+          buy(latestBlockHash, tokenAccount, poolstate, marketDetailsDecoded);
+          clearInterval(intervalId); // Stop retrying when a match is found
+        } else if (attempts >= maxAttempts) {
+          logger.error("Invalid market details");
+          clearInterval(intervalId); // Stop retrying after maxAttempts
         }
-      }
-
-      if (slotCheckResult) {
-        const poolstate = LIQUIDITY_STATE_LAYOUT_V4.decode(data.account.account.data);
-        const tokenAccount = new PublicKey(data.account.account.pubkey);
-        logger.info(`Token Account: ${tokenAccount}`);
-
-        let attempts = 0;
-        const maxAttempts = 2;
-
-        const intervalId = setInterval(async () => {
-          const marketDetails = bufferRing.findPattern(poolstate.baseMint);
-          if (Buffer.isBuffer(marketDetails)) {
-            const fullMarketDetailsDecoded = MARKET_STATE_LAYOUT_V3.decode(marketDetails);
-            const marketDetailsDecoded = {
-              bids: fullMarketDetailsDecoded.bids,
-              asks: fullMarketDetailsDecoded.asks,
-              eventQueue: fullMarketDetailsDecoded.eventQueue,
-            };
-            buy(latestBlockHash, tokenAccount, poolstate, marketDetailsDecoded);
-            clearInterval(intervalId); // Stop retrying when a match is found
-          } else if (attempts >= maxAttempts) {
-            logger.error("Invalid market details");
-            clearInterval(intervalId); // Stop retrying after maxAttempts
-          }
-          attempts++;
-        }, 10); // Retry every 10ms
-      }
-      else {
-        logger.info(`No up coming Jito leaders. Slot: ${data.account.slot}`)
-      }
-
-
-
+        attempts++;
+      }, 10); // Retry every 10ms
     }
   });
 
