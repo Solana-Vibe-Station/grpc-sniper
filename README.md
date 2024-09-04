@@ -6,8 +6,6 @@ This program does not have any sell logic. This is not a bot. This is simply exa
 
 ![image](https://github.com/bigj-SVS/grpc-sniper/assets/173855326/1f4f4f54-d2fc-438e-a603-6aba1b641e1b)
 
-# Updated branch for people without a whitelisted id.json file
-You can use this branch to use the public Jito send transaction endpoint without having to have a pre-approved whitelisted Jito id.json file.
 
 # Requirements
 - Yellowstone's Dragons Mouth GRPC streaming access (SVS's gRPC service)
@@ -15,9 +13,11 @@ You can use this branch to use the public Jito send transaction endpoint without
 
 
 # Instructions
+- Run `npm install`
 - Rename `.env.copy` to `.env`
 - Add Solana Vibe Station API key to both the `RPC_ENDPOINT` and `RPC_WEBSOCKET_ENDPOINT` fields in the .env file
 - Add your private key in base64 format which can be exported from either Phantom or derived from your JSON keypair for your wallet.
+- Run `npm run test` to start the program
 
 For anyone looking for RPC node access + GRPC streaming checkout our Discord server below.
 

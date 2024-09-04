@@ -149,7 +149,7 @@ export async function buy(latestBlockhash: string, newTokenAccount: PublicKey, p
         skipPreflight: true,
       });
 
-      logger.info(`Sending bundle transaction with mint - ${signature}`);
+      logger.info(`Sending buy transaction with signature - ${signature}`);
     }
     catch (error) {
       logger.error(error);
