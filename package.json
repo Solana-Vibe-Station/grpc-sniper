@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "test.ts",
   "scripts": {
-    "test": "ts-node test.ts"
+    "build": "tsc",
+    "start": "node dist/test.js"
   },
   "dependencies": {
     "@project-serum/serum": "^0.13.65",
