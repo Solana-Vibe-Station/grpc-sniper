@@ -22,11 +22,21 @@ export const MINIMAL_MARKET_STATE_LAYOUT_V3 = struct([
   publicKey('asks'),
 ]);
 
+// Create pool keys with cached associated authorities for optimization
 export function createPoolKeys(
   id: PublicKey,
   accountData: LiquidityStateV4,
   minimalMarketLayoutV3: MinimalMarketLayoutV3,
 ): LiquidityPoolKeys {
+  const liquidityAuthority = Liquidity.getAssociatedAuthority({
+    programId: RAYDIUM_LIQUIDITY_PROGRAM_ID_V4,
+  }).publicKey;
+
+  const marketAuthority = Market.getAssociatedAuthority({
+    programId: accountData.marketProgramId,
+    marketId: accountData.marketId,
+  }).publicKey;
+
   return {
     id,
     baseMint: accountData.baseMint,
@@ -37,9 +47,7 @@ export function createPoolKeys(
     lpDecimals: 5,
     version: 4,
     programId: RAYDIUM_LIQUIDITY_PROGRAM_ID_V4,
-    authority: Liquidity.getAssociatedAuthority({
-      programId: RAYDIUM_LIQUIDITY_PROGRAM_ID_V4,
-    }).publicKey,
+    authority: liquidityAuthority,
     openOrders: accountData.openOrders,
     targetOrders: accountData.targetOrders,
     baseVault: accountData.baseVault,
@@ -47,10 +55,7 @@ export function createPoolKeys(
     marketVersion: 3,
     marketProgramId: accountData.marketProgramId,
     marketId: accountData.marketId,
-    marketAuthority: Market.getAssociatedAuthority({
-      programId: accountData.marketProgramId,
-      marketId: accountData.marketId,
-    }).publicKey,
+    marketAuthority,
     marketBaseVault: accountData.baseVault,
     marketQuoteVault: accountData.quoteVault,
     marketBids: minimalMarketLayoutV3.bids,
@@ -62,6 +67,7 @@ export function createPoolKeys(
   };
 }
 
+// Optimize token accounts retrieval and decoding
 export async function getTokenAccounts(
   connection: Connection,
   owner: PublicKey,
@@ -69,20 +75,14 @@ export async function getTokenAccounts(
 ) {
   const tokenResp = await connection.getTokenAccountsByOwner(
     owner,
-    {
-      programId: TOKEN_PROGRAM_ID,
-    },
+    { programId: TOKEN_PROGRAM_ID },
     commitment,
   );
 
-  const accounts: TokenAccount[] = [];
-  for (const { pubkey, account } of tokenResp.value) {
-    accounts.push({
-      pubkey,
-      programId: account.owner,
-      accountInfo: SPL_ACCOUNT_LAYOUT.decode(account.data),
-    });
-  }
-
-  return accounts;
+  // Decode accounts and map directly, reducing memory allocation overhead
+  return tokenResp.value.map(({ pubkey, account }) => ({
+    pubkey,
+    programId: account.owner,
+    accountInfo: SPL_ACCOUNT_LAYOUT.decode(account.data),
+  }));
 }

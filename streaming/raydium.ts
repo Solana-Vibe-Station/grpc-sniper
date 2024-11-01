@@ -1,5 +1,11 @@
 import { CommitmentLevel, SubscribeRequest } from "@triton-one/yellowstone-grpc";
 import pino from "pino";
+import Client from "@triton-one/yellowstone-grpc";
+import { LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3 } from "@raydium-io/raydium-sdk";
+import { PublicKey, Transaction, sendAndConfirmTransaction, Connection } from "@solana/web3.js";
+import { bufferRing } from "./openbook";
+import { buy } from "../transaction/transaction";
+
 const transport = pino.transport({
   target: 'pino-pretty',
 });
@@ -15,123 +21,114 @@ export const logger = pino(
   transport,
 );
 
-
-import Client from "@triton-one/yellowstone-grpc";
-import { LIQUIDITY_STATE_LAYOUT_V4, MARKET_STATE_LAYOUT_V3 } from "@raydium-io/raydium-sdk";
-import { PublicKey } from "@solana/web3.js";
-import { bufferRing } from "./openbook";
-import { buy } from "../transaction/transaction";
-
-// uncomment this line to enable Jito leader schedule check and delete the return line.
-function slotExists(slot: number): boolean {
-  //return leaderSchedule.has(slot);
-  return true
-}
-
-const client = new Client("https://grpc.solanavibestation.com", undefined, undefined); //grpc endpoint from Solana Vibe Station obviously
-
-(async () => {
-  const version = await client.getVersion(); // gets the version information
-  console.log(version);
-})();
-
+const client = new Client("https://grpc.solanavibestation.com", undefined, undefined);
 let latestBlockHash: string = "";
 
 export async function streamNewTokens() {
-  const stream = await client.subscribe();
-  // Collecting all incoming events.
-  stream.on("data", (data) => {
-    if (data.blockMeta) {
-      latestBlockHash = data.blockMeta.blockhash;
-    }
+  try {
+    const stream = await client.subscribe();
 
-    if (data.account != undefined) {
-      logger.info(`New token alert!`);
-
-      
-      const poolstate = LIQUIDITY_STATE_LAYOUT_V4.decode(data.account.account.data);
-      const tokenAccount = new PublicKey(data.account.account.pubkey);
-      logger.info(`Token Account: ${tokenAccount}`);
-
-      let attempts = 0;
-      const maxAttempts = 2;
-
-      const intervalId = setInterval(async () => {
-        const marketDetails = bufferRing.findPattern(poolstate.baseMint);
-        if (Buffer.isBuffer(marketDetails)) {
-          const fullMarketDetailsDecoded = MARKET_STATE_LAYOUT_V3.decode(marketDetails);
-          const marketDetailsDecoded = {
-            bids: fullMarketDetailsDecoded.bids,
-            asks: fullMarketDetailsDecoded.asks,
-            eventQueue: fullMarketDetailsDecoded.eventQueue,
-          };
-          buy(latestBlockHash, tokenAccount, poolstate, marketDetailsDecoded);
-          clearInterval(intervalId); // Stop retrying when a match is found
-        } else if (attempts >= maxAttempts) {
-          logger.error("Invalid market details");
-          clearInterval(intervalId); // Stop retrying after maxAttempts
-        }
-        attempts++;
-      }, 10); // Retry every 10ms
-    }
-  });
-
-  // Create a subscription request.
-  const request: SubscribeRequest = {
-    "slots": {},
-    "accounts": {
-      "raydium": {
-        "account": [],
-        "filters": [
-          {
-            "memcmp": {
-              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('quoteMint').toString(), // Filter for only tokens paired with SOL
-              "base58": "So11111111111111111111111111111111111111112"
-            }
-          },
-          {
-            "memcmp": {
-              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('marketProgramId').toString(), // Filter for only Raydium markets that contain references to Serum
-              "base58": "srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX"
-            }
-          },
-          {
-            "memcmp": {
-              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('swapQuoteInAmount').toString(), // Hack to filter for only new tokens. There is probably a better way to do this
-              "bytes": Uint8Array.from([0])
-            }
-          },
-          {
-            "memcmp": {
-              "offset": LIQUIDITY_STATE_LAYOUT_V4.offsetOf('swapBaseOutAmount').toString(), // Hack to filter for only new tokens. There is probably a better way to do this
-              "bytes": Uint8Array.from([0])
-            }
-          }
-        ],
-        "owner": ["675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"] // raydium program id to subscribe to
+    stream.on("data", (data) => {
+      if (data.blockMeta) {
+        latestBlockHash = data.blockMeta.blockhash;
       }
-    },
-    "transactions": {},
-    "blocks": {},
-    "blocksMeta": {
-      "block": []
-    },
-    "accountsDataSlice": [],
-    "commitment": CommitmentLevel.PROCESSED,  // Subscribe to processed blocks for the fastest updates
-    entry: {}
-  }
 
-  // Sending a subscription request.
-  await new Promise<void>((resolve, reject) => {
-    stream.write(request, (err: null | undefined) => {
-      if (err === null || err === undefined) {
-        resolve();
-      } else {
-        reject(err);
+      if (data.account) {
+        const poolstate = LIQUIDITY_STATE_LAYOUT_V4.decode(data.account.account.data);
+        const tokenAccount = new PublicKey(data.account.account.pubkey);
+
+        // Get the current time in seconds
+        const currentTime = Math.floor(Date.now() / 1000);
+        const poolOpenTime = poolstate.poolOpenTime.toNumber();
+        console.log("Pool Open Time:", poolOpenTime);
+
+        // Check if the poolOpenTime is within the last 30 seconds
+        const isRecentOpenTime = poolOpenTime >= currentTime - 30 && poolOpenTime <= currentTime;
+        if (isRecentOpenTime) {
+          logger.info(`New token detected with recent open time! Token Account: ${tokenAccount}`);
+          
+          // Use a retry mechanism to check market details
+          checkMarketDetails(poolstate, tokenAccount);
+        } else {
+          logger.info(`Ignored token due to non-recent open time: ${tokenAccount}`);
+        }
       }
     });
-  }).catch((reason) => {
-    console.error(reason);
-    throw reason;
-  });
+
+    // Subscribe to account updates with improved error handling
+    const request: SubscribeRequest = {
+      slots: {},
+      accounts: {
+        raydium: {
+          account: [],
+          filters: [
+            { memcmp: { offset: LIQUIDITY_STATE_LAYOUT_V4.offsetOf('quoteMint').toString(), base58: "So11111111111111111111111111111111111111112" }},
+            { memcmp: { offset: LIQUIDITY_STATE_LAYOUT_V4.offsetOf('marketProgramId').toString(), base58: "srmqPvymJeFKQ4zGQed1GFppgkRHL9kaELCbyksJtPX" }},
+            { memcmp: { offset: LIQUIDITY_STATE_LAYOUT_V4.offsetOf('swapQuoteInAmount').toString(), bytes: Uint8Array.from([0]) }},
+            { memcmp: { offset: LIQUIDITY_STATE_LAYOUT_V4.offsetOf('swapBaseOutAmount').toString(), bytes: Uint8Array.from([0]) }},
+          ],
+          owner: ["675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"],
+        },
+      },
+      transactions: {},
+      blocks: {},
+      blocksMeta: { block: [] },
+      accountsDataSlice: [],
+      commitment: CommitmentLevel.PROCESSED,
+      entry: {},
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      stream.write(request, (err: null | undefined) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    }).catch((reason) => {
+      logger.error("Failed to write subscription request:", reason);
+      throw reason;
+    });
+
+    // Handle possible stream errors
+    stream.on("error", (error) => {
+      logger.error("Stream encountered an error:", error);
+    });
+
+    // Gracefully handle stream ending
+    stream.on("end", () => {
+      logger.info("Stream ended unexpectedly. Reconnecting...");
+      streamNewTokens(); // Attempt to reconnect if stream ends
+    });
+
+  } catch (error) {
+    logger.error("Failed to initiate token streaming:", error);
+    setTimeout(streamNewTokens, 2000); // Retry after 5 seconds if the initial connection fails
+  }
+}
+
+async function checkMarketDetails(poolstate: any, tokenAccount: PublicKey) {
+  let attempts = 0;
+  const maxAttempts = 5;
+  const retryDelay = 20; // 20ms delay between retries
+
+  const attemptCheck = async () => {
+    const marketDetails = bufferRing.findPattern(poolstate.baseMint);
+    if (Buffer.isBuffer(marketDetails)) {
+      const fullMarketDetailsDecoded = MARKET_STATE_LAYOUT_V3.decode(marketDetails);
+      const marketDetailsDecoded = {
+        bids: fullMarketDetailsDecoded.bids,
+        asks: fullMarketDetailsDecoded.asks,
+        eventQueue: fullMarketDetailsDecoded.eventQueue,
+      };
+      // Modify the buy function to include the latest block hash and additional parameters as needed
+      await buy(latestBlockHash, tokenAccount, poolstate, marketDetailsDecoded);
+    } else if (attempts < maxAttempts) {
+      attempts++;
+      setTimeout(attemptCheck, retryDelay); // Retry after 20ms
+    } else {
+      logger.error("Invalid market details. Attempts exceeded.");
+      logger.error(`Token Account: ${tokenAccount}, Pool Base Mint: ${poolstate.baseMint}`);
+    }
+  };
+
+  attemptCheck();
 }
